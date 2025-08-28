@@ -1,0 +1,24 @@
+{
+  "name": "Event Notifications PWA",
+  "short_name": "EventNotifs",
+  "description": "Application PWA pour les notifications d'événements",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/next.svg",
+      "sizes": "180x38",
+      "type": "image/svg+xml"
+    }
+  ],
+  "permissions": [
+    "notifications"
+  ],
+  "prefer_related_applications": false,
+  "categories": ["productivity", "utilities"],
+  "scope": "/",
+  "lang": "fr-FR"
+}
