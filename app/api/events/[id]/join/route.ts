@@ -43,6 +43,11 @@ export async function POST(
 
     if (event.organizerSubscription) {
       try {
+        console.log('📡 Tentative d\'envoi de notification push...');
+        console.log('📝 Événement:', event.title);
+        console.log('👤 Participant:', participantName);
+        console.log('🎯 Abonnement organisateur présent:', !!event.organizerSubscription);
+        
         webpush.setVapidDetails(
           'mailto:test@example.com',
           process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
@@ -52,13 +57,31 @@ export async function POST(
         const payload = JSON.stringify({
           title: `Nouveau participant à "${event.title}"`,
           body: `${participantName} a rejoint votre événement !`,
-          eventId: event.id
+          eventId: event.id,
+          timestamp: new Date().toISOString()
         });
 
-        await webpush.sendNotification(event.organizerSubscription as unknown as webpush.PushSubscription, payload);
+        console.log('📦 Payload:', payload);
+        
+        const result = await webpush.sendNotification(event.organizerSubscription as unknown as webpush.PushSubscription, payload);
+        console.log('✅ Notification envoyée avec succès:', result);
+        
       } catch (error) {
-        console.error('Erreur envoi notification:', error);
+        console.error('❌ Erreur envoi notification:', error);
+        
+        // Log détaillé de l'erreur
+        if (error instanceof Error) {
+          console.error('Message d\'erreur:', error.message);
+          console.error('Stack:', error.stack);
+        }
+        
+        // Si l'abonnement est invalide, on peut le signaler
+        if (error instanceof Error && (error.message.includes('410') || error.message.includes('invalid'))) {
+          console.warn('⚠️ Abonnement push probablement expiré ou invalide');
+        }
       }
+    } else {
+      console.log('⚠️ Aucun abonnement push pour l\'organisateur');
     }
 
     return NextResponse.json({ 

@@ -175,16 +175,39 @@ export default function Home() {
   const subscribeToNotifications = async () => {
     try {
       if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+        console.log('🔄 Début inscription aux notifications...');
         const registration = await navigator.serviceWorker.ready;
+        console.log('✅ Service Worker prêt:', registration);
+        
+        // Vérifier s'il y a déjà un abonnement
+        const existingSubscription = await registration.pushManager.getSubscription();
+        if (existingSubscription) {
+          console.log('📱 Abonnement existant trouvé:', existingSubscription);
+          // Désabonner l'ancien pour en créer un nouveau
+          await existingSubscription.unsubscribe();
+          console.log('🗑️ Ancien abonnement supprimé');
+        }
+        
         const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa40HI93YjYjw6vn8GYUOF_7l9L8A3bwTyDT_DT7v8aQFqDH_Hql4FKBHnkRCaJ';
+        console.log('🔑 Clé VAPID:', publicKey.substring(0, 20) + '...');
+        
         const sub = await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(publicKey)
         });
+        
+        console.log('🎯 Nouvel abonnement créé:', sub);
         setSubscription(sub);
+        
+        // Sauvegarder dans localStorage pour debugging
+        localStorage.setItem('pushSubscription', JSON.stringify(sub.toJSON()));
+        localStorage.setItem('subscriptionTime', new Date().toISOString());
+        
+        console.log('💾 Abonnement sauvegardé dans localStorage');
       }
     } catch (error) {
-      console.error('Erreur lors de l\'inscription aux notifications:', error);
+      console.error('❌ Erreur lors de l\'inscription aux notifications:', error);
+      alert('Erreur d\'abonnement: ' + (error instanceof Error ? error.message : String(error)));
     }
   };
 
@@ -259,13 +282,13 @@ export default function Home() {
     <div className="min-h-screen bg-white py-8">
       <div className="max-w-4xl mx-auto px-4">
         <h1 className="text-3xl font-bold text-center mb-8 text-black">
-          🎉 Event Notifications PWA
+          Event Notifications PWA TEST
         </h1>
 
         {isClient && !isNotificationEnabled && (
           <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-6">
             <p className="mb-2">Activez les notifications pour recevoir des alertes quand quelqu&apos;un rejoint vos événements !</p>
-            <p className="text-sm mb-3">📱 Sur Android : Ajoutez d&apos;abord le site à votre écran d&apos;accueil pour de meilleures performances</p>
+            <p className="text-sm mb-3">Sur Android : Ajoutez d&apos;abord le site à votre écran d&apos;accueil pour de meilleures performances</p>
             
             {'serviceWorker' in navigator ? (
               <div>
@@ -307,6 +330,40 @@ export default function Home() {
                   className="w-full mt-2 bg-blue-500 text-white px-2 py-1 rounded text-sm hover:bg-blue-600"
                 >
                   🔍 Diagnostic mobile
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      console.log('🔧 Réinitialisation des notifications...');
+                      
+                      // Nettoyer localStorage
+                      localStorage.removeItem('pushSubscription');
+                      localStorage.removeItem('subscriptionTime');
+                      
+                      // Désinscrire tous les abonnements existants
+                      if ('serviceWorker' in navigator) {
+                        const registration = await navigator.serviceWorker.ready;
+                        const existingSubscription = await registration.pushManager.getSubscription();
+                        if (existingSubscription) {
+                          await existingSubscription.unsubscribe();
+                          console.log('🗑️ Abonnement existant supprimé');
+                        }
+                      }
+                      
+                      // Réinitialiser les états
+                      setSubscription(null);
+                      setIsNotificationEnabled(false);
+                      
+                      alert('🔄 Notifications réinitialisées !\nVous pouvez maintenant les réactiver.');
+                      
+                    } catch (error) {
+                      console.error('Erreur lors de la réinitialisation:', error);
+                      alert('Erreur: ' + (error instanceof Error ? error.message : String(error)));
+                    }
+                  }}
+                  className="w-full mt-2 bg-red-500 text-white px-2 py-1 rounded text-sm hover:bg-red-600"
+                >
+                  🔄 Réinitialiser notifications
                 </button>
               </div>
             ) : (
