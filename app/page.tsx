@@ -48,8 +48,16 @@ function PushNotificationManager() {
       ),
     })
     setSubscription(sub)
-    const serializedSub = JSON.parse(JSON.stringify(sub))
-    await subscribeUser(serializedSub)
+    
+    const subscriptionData = {
+      endpoint: sub.endpoint,
+      keys: {
+        p256dh: sub.getKey('p256dh') ? Buffer.from(sub.getKey('p256dh')!).toString('base64') : '',
+        auth: sub.getKey('auth') ? Buffer.from(sub.getKey('auth')!).toString('base64') : ''
+      }
+    }
+    
+    await subscribeUser(subscriptionData)
   }
 
   async function unsubscribeFromPush() {

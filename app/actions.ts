@@ -9,17 +9,25 @@ webpush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY!
 )
 
-export async function subscribeUser(sub: PushSubscription) {
-  const p256dh = sub.getKey('p256dh') ? Buffer.from(sub.getKey('p256dh')!).toString('base64') : ''
-  const auth = sub.getKey('auth') ? Buffer.from(sub.getKey('auth')!).toString('base64') : ''
-  
+interface SubscriptionData {
+  endpoint: string
+  keys: {
+    p256dh: string
+    auth: string
+  }
+}
+
+export async function subscribeUser(sub: SubscriptionData) {
   await prisma.pushSubscription.upsert({
     where: { endpoint: sub.endpoint },
-    update: { p256dh, auth },
+    update: { 
+      p256dh: sub.keys.p256dh, 
+      auth: sub.keys.auth 
+    },
     create: {
       endpoint: sub.endpoint,
-      p256dh,
-      auth,
+      p256dh: sub.keys.p256dh,
+      auth: sub.keys.auth,
     },
   })
   
