@@ -1,6 +1,7 @@
 'use server'
 
 import webpush from 'web-push'
+import { prisma } from '../lib/prisma'
 
 webpush.setVapidDetails(
   'mailto:your-email@example.com',
@@ -8,35 +9,66 @@ webpush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY!
 )
 
-let subscription: webpush.PushSubscription | null = null
-
 export async function subscribeUser(sub: PushSubscription) {
-  subscription = sub as unknown as webpush.PushSubscription
+  const p256dh = sub.getKey('p256dh') ? Buffer.from(sub.getKey('p256dh')!).toString('base64') : ''
+  const auth = sub.getKey('auth') ? Buffer.from(sub.getKey('auth')!).toString('base64') : ''
+  
+  await prisma.pushSubscription.upsert({
+    where: { endpoint: sub.endpoint },
+    update: { p256dh, auth },
+    create: {
+      endpoint: sub.endpoint,
+      p256dh,
+      auth,
+    },
+  })
+  
   return { success: true }
 }
 
-export async function unsubscribeUser() {
-  subscription = null
+export async function unsubscribeUser(endpoint: string) {
+  await prisma.pushSubscription.delete({
+    where: { endpoint },
+  })
   return { success: true }
 }
 
 export async function sendNotification(message: string) {
-  if (!subscription) {
-    throw new Error('No subscription available')
+  const subscriptions = await prisma.pushSubscription.findMany()
+  
+  if (subscriptions.length === 0) {
+    throw new Error('No subscriptions available')
   }
 
-  try {
-    await webpush.sendNotification(
-      subscription,
-      JSON.stringify({
-        title: 'Test Notification',
-        body: message,
-        icon: '/icon.png',
-      })
-    )
-    return { success: true }
-  } catch (error) {
-    console.error('Error sending push notification:', error)
-    return { success: false, error: 'Failed to send notification' }
-  }
+  const results = await Promise.allSettled(
+    subscriptions.map(async (sub) => {
+      try {
+        await webpush.sendNotification(
+          {
+            endpoint: sub.endpoint,
+            keys: {
+              p256dh: sub.p256dh,
+              auth: sub.auth,
+            },
+          },
+          JSON.stringify({
+            title: 'Notification Test',
+            body: message,
+            icon: '/icon.png',
+          })
+        )
+      } catch (error) {
+        console.error('Error sending to subscription:', error)
+        if (error instanceof Error && 'statusCode' in error && error.statusCode === 410) {
+          await prisma.pushSubscription.delete({
+            where: { id: sub.id },
+          })
+        }
+        throw error
+      }
+    })
+  )
+
+  const successful = results.filter((r) => r.status === 'fulfilled').length
+  return { success: true, sent: successful, total: subscriptions.length }
 }
